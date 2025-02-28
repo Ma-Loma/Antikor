@@ -39,5 +39,5 @@ beide %>%
   geom_line() +
   coord_cartesian(xlim=c(0,400),ylim = c(0, 850))
 
-ggsave("O3_NO_Korrelation.png", width=20, height=10, dpi=300)
+ggsave("O3_NO2_Korrelation.png", width=20, height=10, dpi=300)
   
