@@ -34,6 +34,12 @@ beide %>%
   geom_line(aes(group=Station))+
   facet_wrap(vars(Stoff), scales="free_y")
 
+ggsave(
+  "O3_NO2_Zeitverlauf.png",
+  width = 20,
+  height = 10,
+  dpi = 300
+)
 
 beide %>%
   pivot_wider(names_from = Stoff, values_from = Wert) %>%
