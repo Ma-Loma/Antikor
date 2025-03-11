@@ -1,9 +1,36 @@
-rm(list=ls())
+---
+title: "Correlation of O3 and NO2 in Hessen"
+author: "Matthias Lochmann, HLNUG"
+date: "`r Sys.Date()`"
+output: powerpoint_presentation
+---
 
+```{r setup, include=FALSE}
+rm(list=ls())
+library(knitr)
 library(tidyverse)
 library(readr)
 library(viridis)
 library(readxl)
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Impressum
+
+All measurement data in this document is available from <https://www.hlnug.de/messwerte/datenportal/luftmessnetz>. The analysis is maintained at <https://github.com/Ma-Loma/Antikor.git> and was performed by Matthias Lochmann (HLNUG) on `r Sys.Date()`.
+
+## Motivation
+
+In the burden-eu webinar with title "Establishing new exposure-response functions for air pollutants and environmental noise", the results of different metaanalyses on NO2 and relative risk of COPD were presented. Depending on the analysis methods and constraints, the risk might have a negative slope. However, this might be due to the correlation of NO2 with O3. As it is likely, that O3 increases the risk of COPD, the negative slope might be due to the correlation of NO2 with O3. This presentation will show the correlation of NO2 and O3 in Hessen (Germany).
+
+```{r}
+include_graphics("img/BestCostScreenshot.png")
+```
+
+
+## Measurements from Hessen
+
+```{r load_data, include=FALSE}
 
 bereinigen<-function (string){
   string %>% 
@@ -104,37 +131,28 @@ tageswerteLong<-tageswerte %>%
   filter(!is.na(Concentration)) %>%
   mutate(Station=bereinigen(Station)) %>% 
   left_join(Stationsnamen_Kategorie, by="Station")
+```
 
-beideJahresmittel %>% 
+Measured NO2 and O3 concentrations as annual averages since 2005. The measurement site categories are symbolized as different colors. O3 is measured at "Rural Background" sites, but not routinely measured at "Urban Background" and not at all at "Urban Traffic" sites. See yearly averages at next slide.
+
+## NO2 and O3 yearly averages
+
+```{r jahresmittelverlauf, fig.asp = 0.5, fig.width = 10}
+pl1<-beideJahresmittel %>% 
   ggplot(aes(x=year, y=Concentration, group=Station,color=Category))+
   geom_line(aes(group=Station))+
   facet_wrap(vars(Pollutant), scales="free_y")+
   labs(x="year",y="Concentration yearly average [µg/m³]")
+pl1
+```
 
-ggsave(
-  "O3_NO2_Zeitverlauf_Jahresmittel.png",
-  width = 20,
-  height = 10,
-  dpi = 300
-)
+## Correlation of NO2 and O3
 
-beideJahresmittel %>% 
-  filter(Category=="Ländlich"&Pollutant=="O3"&Concentration<50) %>% 
-  select(Station) %>% 
-  unique()
+The next scatterplot of yearly average values since 2005 shows a strong negative correlation of concentrations of NO2 and O3. As some stations are only measuring NO2, the O3 missing values are artificially set to 30 or 31 µg/m³, for "Urban Traffic" and "Urban Background" sites respectively. However, these sites are expected to have low O3 concentrations, so this would fit to the negative correlation. (The years are gradually color coded, to make visible the time trend. The time trend might be interesting, but is not the main focus of this analysis.)
 
-tageswerteLong %>% 
-  ggplot(aes(x=time, y=Concentration))+
-  geom_line(aes(color=Station))+
-  facet_grid(cols=vars(Category),rows=vars(Pollutant))+
-  labs(y="Concentration daily average [µg/m³]")
+## Correlation of NO2 and O3
 
-ggsave(
-  "O3_NO2_Zeitverlauf_Tagesmittel.png",
-  width = 20,
-  height = 10,
-  dpi = 300
-)
+```{r jahresmittelcorrelation, fig.asp = 0.5, fig.width = 13}
 
 beideJahresmittel %>%
   pivot_wider(names_from = Pollutant, values_from = Concentration) %>%
@@ -152,13 +170,17 @@ beideJahresmittel %>%
     colour = guide_legend(
       title = "Year")
   )
+```
 
-ggsave(
-  "O3_NO2_Korrelation_Jahresmittel.png",
-  width = 20,
-  height = 10,
-  dpi = 300
-)
+
+## Daily resolution
+
+Although the longterm epidemiological studies are based on yearly averages, the daily resolution might be interesting for the correlation of NO2 and O3.
+The daily resolution of NO2 and O3 concentrations shows a similar negative correlation. The scatterplot is faceted by the measurement site category and the quarter of the year. (Again, the time is color coded, but not the main focus of the analysis.)
+
+## Daily resolution
+
+```{r dailyresolution, fig.asp = 0.5, fig.width = 13, fig.dpi=300}
 
 tageswerteLong %>%
   mutate(Quartal = lubridate::quarter(time, fiscal_start = 12) %>% paste0("Q", .)) %>%
@@ -183,9 +205,15 @@ tageswerteLong %>%
                       labels = as.Date) +
   facet_grid(rows = vars(Category), cols = vars(Quartal)) +
   coord_cartesian(xlim = c(0, 80), ylim = c(0, 160))
-ggsave(
-  "O3_NO2_Korrelation_Tagesmittel.png",
-  width = 20,
-  height = 10,
-  dpi = 300
-)
+
+```
+
+## Conclusion
+
+The analyised data consists only of measurement data from Hessen, Germany and does not include O3 measurements at urban traffic sites. However, the observed anticorrelation, might be representative for other regions with similar climate and emission patterns.
+
+Most probably, there might be a truly protective effects of NO2 via the destruction of O3. The negative slope of NO2 and relative risk of COPD (when using natural cubic spline method) is not necessarly wrong, when using a single pollutant model without confounder adjustment for O3.
+
+## Counterfactual model
+
+If staying with the single pollutant model, the counterfactual model could be NO2 concentration=0 or TMREL, but with O3 unchanged.
