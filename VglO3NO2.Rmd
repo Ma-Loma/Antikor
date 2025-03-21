@@ -49,7 +49,8 @@ Stationsnamen_Kategorie <- read_excel("data/Stationsnamen_Kategorie.xlsx") %>%
 Stationsnamen_Kategorie$Category<-Stationsnamen_Kategorie$Category %>% 
   gsub("Verkehr","Urban Traffic",.) %>%
   gsub("Ländlich","Rural Background",.) %>%
-  gsub("Stadt","Urban Background",.)
+  gsub("Stadt","Urban Background",.) %>%
+  gsub("Vorort","Suburban",.)
 
 no2Jahresmittel <- read_delim(
   "data/no2.txt",
@@ -133,7 +134,7 @@ tageswerteLong<-tageswerte %>%
   left_join(Stationsnamen_Kategorie, by="Station")
 ```
 
-Measured NO2 and O3 concentrations as annual averages since 2005. The measurement site categories are symbolized as different colors. O3 is measured at "Rural Background" sites, but not routinely measured at "Urban Background" and not at all at "Urban Traffic" sites. See yearly averages at next slide.
+The next graph shows the annual averages of measured NO2 and O3 concentrations  since 2005. The measurement site categories are symbolized as different colors. O3 is measured at all "Rural Background" sites, at most "Urban Background" sites, but not at "Urban Traffic" sites.
 
 ## NO2 and O3 yearly averages
 
@@ -148,42 +149,83 @@ pl1
 
 ## Correlation of NO2 and O3
 
-The next scatterplot of yearly average values since 2005 shows a strong negative correlation of concentrations of NO2 and O3. As some stations are only measuring NO2, the O3 missing values are artificially set to 30 or 31 µg/m³, for "Urban Traffic" and "Urban Background" sites respectively. However, these sites are expected to have low O3 concentrations, so this would fit to the negative correlation. (The years are gradually color coded, to make visible the time trend. The time trend might be interesting, but is not the main focus of this analysis.)
+The next scatterplot of yearly average values since 2005 shows a strong negative correlation of concentrations of NO2 and O3. The red lines are simple two parameter fits with $O3= \frac{a}{NO2}+ b$. As some stations are only measuring NO2, the data are not included in the fit. However there are included in the plot, with the O3 missing values artificially set to 30 or 31 µg/m³, for "Urban Traffic" and "Urban Background" sites respectively. (The graph is faceted and color coded by year, to make visible the time trend. The time trend might be interesting, but is not the main focus of this analysis.)
 
 ## Correlation of NO2 and O3
 
-```{r jahresmittelcorrelation, fig.asp = 0.5, fig.width = 13}
+```{r jahresmittelcorrelation,message=FALSE,warning=FALSE,dpi=300, fig.asp = 0.5, fig.width = 13}
 
-beideJahresmittel %>%
+decline_fct <- function(df) {
+  tryCatch({
+    nls(O3 ~ a / NO2 + b,
+        data = df,
+        start = list(a = 180.1, b = 40))
+  }, error = function(e)
+    NA)
+}
+
+# Perform nonlinear fit per group
+fit_decline <- function(df) {
+  df%>%
+    group_modify(~ {
+      model <- decline_fct(.x)
+      if (length(model)>1) {
+        new_data <- tibble(NO2 = seq(min(.x$NO2, na.rm = TRUE),
+                                     max(.x$NO2, na.rm = TRUE), length.out = 100))
+        new_data$O3_fit <- predict(model, newdata = new_data)
+        new_data$a<-coef(model)["a"]
+        new_data$b<-coef(model)["b"]
+        return(new_data)
+      } else {
+        return(tibble(NO2 = numeric(), O3_fit = numeric()))
+      }
+    })
+}
+
+jahresmittel_grouped_wide <- beideJahresmittel %>%
   pivot_wider(names_from = Pollutant, values_from = Concentration) %>%
+  mutate(year_cat=as.character(year)) %>%
+  rbind(., mutate(., Category = "All")) %>%
+  rbind(., mutate(., year_cat = "All")) %>%
+  group_by(Category, year_cat)
+
+jahres_fits <- jahresmittel_grouped_wide %>%
+ fit_decline()
+fitted_yearly_parameters <-
+  jahres_fits %>%
+  select(!c(NO2, O3_fit)) %>%
+  unique()
+
+jahresmittel_grouped_wide %>% 
   mutate(O3=if_else(is.na(O3)&Category=="Urban Traffic",30,O3)) %>%
   mutate(O3=if_else(is.na(O3)&Category=="Urban Background",31,O3)) %>%
   ggplot(aes(x = NO2, y = O3)) +
   xlab("NO2 yearly average") + ylab("O3 yearly average") +
-  geom_point(aes(color = factor(year),shape = Category)) +
-  geom_line(aes(color = factor(year), group = Station)) +
-  scale_color_viridis(discrete=TRUE, option="viridis")+
+  geom_point(aes(color = year,shape = Category)) +
+  geom_line(aes(color = year, group = Station)) +
+  geom_line(data=jahres_fits,color="red",aes(x=NO2,y=O3_fit,linetype =
+                          Category
+                            #  interaction(Category,decade)
+                          )) +
+  scale_color_viridis(discrete=FALSE, option="viridis")+
 #  facet_wrap(vars(Category))+
   coord_cartesian(xlim = c(0, 40), ylim = c(30, 85))+
-  scale_shape_manual(values = c(2:4))+ 
-  guides(
-    colour = guide_legend(
-      title = "Year")
-  )
+  scale_shape_manual(values = c(2:6))+
+  facet_wrap(vars(year_cat))
+
 ```
 
+## Daily resolution
+
+The longterm epidemiological studies are based on yearly averages. However, the next scatterplot of measured NO2 and O3 concentrations with daily resolution might give insights on air-chemistry dynamics. Most of the facets (measurement site category and season) show similar negative correlation. Again, the red lines are simple two parameter fits with $O3= \frac{a}{NO2}+ b$. Obviously, it does not describe the data as well as the yearly data, but still illustrates the anti-correlation of NO2 and O3. (Again, the time is color coded, but not the main focus of the analysis.)
 
 ## Daily resolution
 
-Although the longterm epidemiological studies are based on yearly averages, the daily resolution might be interesting for the correlation of NO2 and O3.
-The daily resolution of NO2 and O3 concentrations shows a similar negative correlation. The scatterplot is faceted by the measurement site category and the quarter of the year. (Again, the time is color coded, but not the main focus of the analysis.)
+```{r dailyresolution, message=FALSE,warning=FALSE, fig.asp=0.5, fig.dpi=300, fig.width=13}
 
-## Daily resolution
-
-```{r dailyresolution, fig.asp = 0.5, fig.width = 13, fig.dpi=300}
-
-tageswerteLong %>%
-  mutate(Quartal = lubridate::quarter(time, fiscal_start = 12) %>% paste0("Q", .)) %>%
+tageswerte_grouped_wide<-tageswerteLong %>%
+  mutate(Quartal = lubridate::quarter(time, fiscal_start = 12) %>%
+           paste0("Q", .)) %>%
   mutate(
     Quartal = Quartal %>%
       gsub("Q1", "Dec-Feb", .) %>%
@@ -196,16 +238,28 @@ tageswerteLong %>%
   ))) %>%
   #  slice_sample(n=100000) %>%
   pivot_wider(names_from = Pollutant, values_from = Concentration) %>%
+  rbind(., mutate(., Category = "All")) %>%
+  rbind(., mutate(., Quartal = "All")) %>%
+  group_by(Category, Quartal)
+
+tages_fits <- tageswerte_grouped_wide %>%
+  fit_decline()
+fitted_daily_parameters <-
+  tages_fits %>%
+  select(!c(NO2, O3_fit)) %>%
+  unique()  
+  
+  
+tageswerte_grouped_wide %>%
   ggplot(aes(x = NO2, y = O3)) +
   xlab("NO2 daily average [µg/m³]") + ylab("O3 daily average [µg/m³]") +
   geom_point(aes(color = time), shape = ".") +
-  #geom_line(aes(color = time, group = Station)) +
+  geom_line(data = tages_fits, color = "red", aes(x = NO2, y = O3_fit)) +
   scale_color_viridis(discrete = FALSE,
                       option = "viridis",
                       labels = as.Date) +
   facet_grid(rows = vars(Category), cols = vars(Quartal)) +
   coord_cartesian(xlim = c(0, 80), ylim = c(0, 160))
-
 ```
 
 ## Conclusion
@@ -214,6 +268,15 @@ The analyised data consists only of measurement data from Hessen, Germany and do
 
 Most probably, there might be a truly protective effects of NO2 via the destruction of O3. The negative slope of NO2 and relative risk of COPD (when using natural cubic spline method) is not necessarly wrong, when using a single pollutant model without confounder adjustment for O3.
 
-## Counterfactual model
+## Thinking about counterfactual models
 
-If staying with the single pollutant model, the counterfactual model could be NO2 concentration=0 or TMREL, but with O3 unchanged.
+When considering a re-analysis of the epidemiological data, it might be worth to consider, which counterfactual model to use.
+
+ - single pollutant model, with counterfactual scenario NO2 concentration=0 or NO2 concentration=TMREL, but with O3 unchanged. This might be the classical epidemiological approach, however unrealistic, as O3 concentration would increase in real world scenarios.
+ 
+## Counterfactual model with two pollutants
+
+- single pollutant model, with counterfactual scenario NO2 concentration=0 or NO2 concentration=TMREL, with rising O3 concentration. This might be a more realistic scenario, implicitly used in the analysed performed so far. However, the ERF should then be allowed to have a negative slope.
+
+
+ - two pollutant model, with counterfactual scenario both NO2 and O3 concentration=0 or TMREL. This might be the most beautiful, however most unrealistic scenario.
