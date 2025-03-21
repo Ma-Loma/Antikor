@@ -52,7 +52,8 @@ beideJahresmittel <- bind_rows(no2Jahresmittel, o3Jahresmittel) %>%
   pivot_longer(-c(Station, Pollutant), names_to="year", values_to="Concentration")%>% 
   filter(!is.na(Concentration)) %>% 
   mutate(year=as.numeric(year)) %>% 
-  left_join(Stationsnamen_Kategorie, by="Station")
+  left_join(Stationsnamen_Kategorie, by="Station") %>% 
+  mutate(decade = round(year / 10) * 10)
 
 beideJahresmittel %>% 
   filter(is.na(Category)) %>% 
@@ -118,10 +119,76 @@ ggsave(
   dpi = 300
 )
 
-beideJahresmittel %>% 
-  filter(Category=="Ländlich"&Pollutant=="O3"&Concentration<50) %>% 
-  select(Station) %>% 
+decline_fct <- function(df) {
+  tryCatch({
+    nls(O3 ~ a / NO2 + b,
+        data = df,
+        start = list(a = 180.1, b = 40))
+  }, error = function(e)
+    NA)
+}
+
+# Perform nonlinear fit per group
+fit_decline <- function(df) {
+  df%>%
+    group_modify(~ {
+      model <- decline_fct(.x)
+      if (length(model)>1) {
+        new_data <- tibble(NO2 = seq(min(.x$NO2, na.rm = TRUE),
+                                     max(.x$NO2, na.rm = TRUE), length.out = 100))
+        new_data$O3_fit <- predict(model, newdata = new_data)
+        new_data$a<-coef(model)["a"]
+        new_data$b<-coef(model)["b"]
+        return(new_data)
+      } else {
+        return(tibble(NO2 = numeric(), O3_fit = numeric()))
+      }
+    })
+}
+
+jahresmittel_grouped_wide <- beideJahresmittel %>%
+  pivot_wider(names_from = Pollutant, values_from = Concentration) %>%
+  mutate(year_cat=as.character(year)) %>%
+  rbind(., mutate(., Category = "All")) %>%
+  rbind(., mutate(., year_cat = "All")) %>%
+  group_by(Category, year_cat)
+
+jahres_fits <- jahresmittel_grouped_wide %>%
+ fit_decline()
+fitted_yearly_parameters <-
+  jahres_fits %>%
+  select(!c(NO2, O3_fit)) %>%
   unique()
+
+jahresmittel_grouped_wide %>% 
+  mutate(O3=if_else(is.na(O3)&Category=="Urban Traffic",30,O3)) %>%
+  mutate(O3=if_else(is.na(O3)&Category=="Urban Background",31,O3)) %>%
+  ggplot(aes(x = NO2, y = O3)) +
+  xlab("NO2 yearly average") + ylab("O3 yearly average") +
+  geom_point(aes(color = year,shape = Category)) +
+  geom_line(aes(color = year, group = Station)) +
+  geom_line(data=jahres_fits,color="red",aes(x=NO2,y=O3_fit,linetype =
+                          Category
+                            #  interaction(Category,decade)
+                          )) +
+  scale_color_viridis(discrete=FALSE, option="viridis")+
+#  facet_wrap(vars(Category))+
+  coord_cartesian(xlim = c(0, 40), ylim = c(30, 85))+
+  scale_shape_manual(values = c(2:6))+
+  facet_wrap(vars(year_cat))
+
+ggsave(
+  "O3_NO2_Korrelation_Jahresmittel.png",
+  width = 20,
+  height = 10,
+  dpi = 300
+)
+
+fitted_yearly_parameters %>% 
+  ggplot(aes(x = a, y = b,color=as.numeric(year),shape=Category)) +
+  scale_color_viridis(discrete=FALSE, option="viridis")+
+  geom_point()+
+  geom_path(aes(group=Category))
 
 tageswerteLong %>% 
   ggplot(aes(x=time, y=Concentration))+
@@ -136,32 +203,10 @@ ggsave(
   dpi = 300
 )
 
-beideJahresmittel %>%
-  pivot_wider(names_from = Pollutant, values_from = Concentration) %>%
-  mutate(O3=if_else(is.na(O3)&Category=="Urban Traffic",30,O3)) %>%
-  mutate(O3=if_else(is.na(O3)&Category=="Urban Background",31,O3)) %>%
-  ggplot(aes(x = NO2, y = O3)) +
-  xlab("NO2 yearly average") + ylab("O3 yearly average") +
-  geom_point(aes(color = factor(year),shape = Category)) +
-  geom_line(aes(color = factor(year), group = Station)) +
-  scale_color_viridis(discrete=TRUE, option="viridis")+
-#  facet_wrap(vars(Category))+
-  coord_cartesian(xlim = c(0, 40), ylim = c(30, 85))+
-  scale_shape_manual(values = c(2:4))+ 
-  guides(
-    colour = guide_legend(
-      title = "Year")
-  )
 
-ggsave(
-  "O3_NO2_Korrelation_Jahresmittel.png",
-  width = 20,
-  height = 10,
-  dpi = 300
-)
-
-tageswerteLong %>%
-  mutate(Quartal = lubridate::quarter(time, fiscal_start = 12) %>% paste0("Q", .)) %>%
+tageswerte_grouped_wide<-tageswerteLong %>%
+  mutate(Quartal = lubridate::quarter(time, fiscal_start = 12) %>%
+           paste0("Q", .)) %>%
   mutate(
     Quartal = Quartal %>%
       gsub("Q1", "Dec-Feb", .) %>%
@@ -174,15 +219,29 @@ tageswerteLong %>%
   ))) %>%
   #  slice_sample(n=100000) %>%
   pivot_wider(names_from = Pollutant, values_from = Concentration) %>%
+  rbind(., mutate(., Category = "All")) %>%
+  rbind(., mutate(., Quartal = "All")) %>%
+  group_by(Category, Quartal)
+
+tages_fits <- tageswerte_grouped_wide %>%
+  fit_decline()
+fitted_daily_parameters <-
+  tages_fits %>%
+  select(!c(NO2, O3_fit)) %>%
+  unique()  
+  
+  
+tageswerte_grouped_wide %>%
   ggplot(aes(x = NO2, y = O3)) +
   xlab("NO2 daily average [µg/m³]") + ylab("O3 daily average [µg/m³]") +
   geom_point(aes(color = time), shape = ".") +
-  #geom_line(aes(color = time, group = Station)) +
+  geom_line(data = tages_fits, color = "red", aes(x = NO2, y = O3_fit)) +
   scale_color_viridis(discrete = FALSE,
                       option = "viridis",
                       labels = as.Date) +
   facet_grid(rows = vars(Category), cols = vars(Quartal)) +
   coord_cartesian(xlim = c(0, 80), ylim = c(0, 160))
+
 ggsave(
   "O3_NO2_Korrelation_Tagesmittel.png",
   width = 20,
