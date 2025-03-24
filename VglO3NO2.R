@@ -22,7 +22,8 @@ Stationsnamen_Kategorie <- read_excel("data/Stationsnamen_Kategorie.xlsx") %>%
 Stationsnamen_Kategorie$Category<-Stationsnamen_Kategorie$Category %>% 
   gsub("Verkehr","Urban Traffic",.) %>%
   gsub("Ländlich","Rural Background",.) %>%
-  gsub("Stadt","Urban Background",.)
+  gsub("Stadt","Urban Background",.) %>%
+  gsub("Vorort","Suburban",.)
 
 no2Jahresmittel <- read_delim(
   "data/no2.txt",
@@ -160,21 +161,25 @@ fitted_yearly_parameters <-
   select(!c(NO2, O3_fit)) %>%
   unique()
 
-jahresmittel_grouped_wide %>% 
+plJahresmittel <- function(df,df_fits) {
+  df %>% 
+    ggplot(aes(x = NO2, y = O3)) +
+    xlab("NO2 yearly average") + ylab("O3 yearly average") +
+    geom_point(aes(color = year,shape = Category)) +
+    geom_line(aes(color = year, group = Station)) +
+    geom_line(data=df_fits,aes(x=NO2,y=O3_fit,group = interaction(year_cat,Category),linetype=Category),inherit.aes = FALSE) +
+    scale_color_viridis(discrete=FALSE, option="viridis")+
+    coord_cartesian(xlim = c(0, 40), ylim = c(30, 85))+
+    scale_shape_manual(values = c(2:6))
+}
+
+pl2<-jahresmittel_grouped_wide %>% 
+#  filter(Category=="All"|year_cat=="All") %>% 
   mutate(O3=if_else(is.na(O3)&Category=="Urban Traffic",30,O3)) %>%
   mutate(O3=if_else(is.na(O3)&Category=="Urban Background",31,O3)) %>%
-  ggplot(aes(x = NO2, y = O3)) +
-  xlab("NO2 yearly average") + ylab("O3 yearly average") +
-  geom_point(aes(color = year,shape = Category)) +
-  geom_line(aes(color = year, group = Station)) +
-  geom_line(data=jahres_fits,color="red",aes(x=NO2,y=O3_fit,linetype =
-                          Category
-                            #  interaction(Category,decade)
-                          )) +
-  scale_color_viridis(discrete=FALSE, option="viridis")+
-#  facet_wrap(vars(Category))+
-  coord_cartesian(xlim = c(0, 40), ylim = c(30, 85))+
-  scale_shape_manual(values = c(2:6))+
+  plJahresmittel(.,jahres_fits)
+
+pl2+
   facet_wrap(vars(year_cat))
 
 ggsave(
