@@ -163,6 +163,7 @@ fitted_yearly_parameters <-
 
 plJahresmittel <- function(df,df_fits) {
   df %>% 
+    filter(Category!="All") %>% 
     ggplot(aes(x = NO2, y = O3)) +
     xlab("NO2 yearly average") + ylab("O3 yearly average") +
     geom_point(aes(color = year,shape = Category)) +
@@ -170,7 +171,10 @@ plJahresmittel <- function(df,df_fits) {
     geom_line(data=df_fits,aes(x=NO2,y=O3_fit,group = interaction(year_cat,Category),linetype=Category),inherit.aes = FALSE) +
     scale_color_viridis(discrete=FALSE, option="viridis")+
     coord_cartesian(xlim = c(0, 40), ylim = c(30, 85))+
-    scale_shape_manual(values = c(2:6))
+    scale_linetype_discrete(name="Category fit")+
+    scale_shape_manual(name="Category measurements",
+                       values = c(2:6))+
+    labs(x = "NO2 yearly average [µg/m³]",y = "O3 yearly average [µg/m³]")
 }
 
 pl2<-jahresmittel_grouped_wide %>% 
@@ -181,6 +185,11 @@ pl2<-jahresmittel_grouped_wide %>%
 
 pl2+
   facet_wrap(vars(year_cat))
+
+jahres_fits %>%
+  filter(year_cat == "All") %>%
+  plJahresmittel(jahresmittel_grouped_wide %>%
+                   filter(Category != "All"), .)
 
 ggsave(
   "O3_NO2_Korrelation_Jahresmittel.png",
