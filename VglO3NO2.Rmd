@@ -149,7 +149,7 @@ pl1
 
 ## Correlation of NO2 and O3
 
-The next scatterplot of yearly average values since 2005 shows a strong negative correlation of concentrations of NO2 and O3. The red lines are simple two parameter fits with $O3= \frac{a}{NO2}+ b$. As some stations are only measuring NO2, the data are not included in the fit. However there are included in the plot, with the O3 missing values artificially set to 30 or 31 µg/m³, for "Urban Traffic" and "Urban Background" sites respectively. (The graph is faceted and color coded by year, to make visible the time trend. The time trend might be interesting, but is not the main focus of this analysis.)
+The next scatterplot of yearly average values since 2005 shows a strong negative correlation of concentrations of NO2 and O3. The red lines are simple two parameter fits with $O3= \frac{a}{NO2}+ b$. As some stations are only measuring NO2, the data are not included in the fit. However these NO2 datapoints are included in the plot, with the O3 missing values artificially set to 30 or 31 µg/m³, for "Urban Traffic" and "Urban Background" sites respectively. (The graph is faceted and color coded by year, to make visible the time trend. The time trend might be interesting, but is not the main focus of this analysis.)
 
 ## Correlation of NO2 and O3
 
@@ -196,21 +196,24 @@ fitted_yearly_parameters <-
   select(!c(NO2, O3_fit)) %>%
   unique()
 
-jahresmittel_grouped_wide %>% 
-  mutate(O3=if_else(is.na(O3)&Category=="Urban Traffic",30,O3)) %>%
-  mutate(O3=if_else(is.na(O3)&Category=="Urban Background",31,O3)) %>%
+
+jahresmittel_grouped_wide %>%
+  mutate(O3 = if_else(is.na(O3) &
+                        Category == "Urban Traffic", 30, O3)) %>%
+  mutate(O3 = if_else(is.na(O3) &
+                        Category == "Urban Background", 31, O3)) %>%
   ggplot(aes(x = NO2, y = O3)) +
   xlab("NO2 yearly average") + ylab("O3 yearly average") +
-  geom_point(aes(color = year,shape = Category)) +
+  geom_point(aes(color = year, shape = Category)) +
   geom_line(aes(color = year, group = Station)) +
-  geom_line(data=jahres_fits,color="red",aes(x=NO2,y=O3_fit,linetype =
-                          Category
-                            #  interaction(Category,decade)
-                          )) +
-  scale_color_viridis(discrete=FALSE, option="viridis")+
-#  facet_wrap(vars(Category))+
-  coord_cartesian(xlim = c(0, 40), ylim = c(30, 85))+
-  scale_shape_manual(values = c(2:6))+
+  geom_line(data = jahres_fits,
+            color = "red",
+            aes(x = NO2, y = O3_fit, linetype =
+                  Category)) +
+  scale_color_viridis(discrete = FALSE, option = "viridis") +
+  scale_linetype_discrete(name = "Category fit") +
+  scale_shape_manual(name = "Category measurements", values = c(2:6)) +
+  labs(x = "NO2 yearly average [µg/m³]", y = "O3 yearly average [µg/m³]") +
   facet_wrap(vars(year_cat))
 
 ```
@@ -264,7 +267,7 @@ tageswerte_grouped_wide %>%
 
 ## Conclusion
 
-The analyised data consists only of measurement data from Hessen, Germany and does not include O3 measurements at urban traffic sites. However, the observed anticorrelation, might be representative for other regions with similar climate and emission patterns.
+The analysed data consists only of measurement data from Hessen, Germany and does not include O3 measurements at urban traffic sites. However, the observed anticorrelation might be representative for other regions with similar climate and emission patterns.
 
 Most probably, there might be a truly protective effects of NO2 via the destruction of O3. The negative slope of NO2 and relative risk of COPD (when using natural cubic spline method) is not necessarly wrong, when using a single pollutant model without confounder adjustment for O3.
 
