@@ -9,6 +9,7 @@ output: powerpoint_presentation
 rm(list=ls())
 library(knitr)
 library(tidyverse)
+library(lubridate)
 library(readr)
 library(viridis)
 library(readxl)
@@ -21,7 +22,7 @@ All measurement data in this document is available from <https://www.hlnug.de/me
 
 ## Motivation
 
-In the burden-eu webinar with title "Establishing new exposure-response functions for air pollutants and environmental noise", the results of different metaanalyses on NO2 and relative risk of COPD were presented. Depending on the analysis methods and constraints, the risk might have a negative slope. However, this might be due to the correlation of NO2 with O3. As it is likely, that O3 increases the risk of COPD, the negative slope might be due to the correlation of NO2 with O3. This presentation will show the correlation of NO2 and O3 in Hessen (Germany).
+The next slide is a screenshot of the burden-eu webinar with title "Establishing new exposure-response functions for air pollutants and environmental noise": the results of different metaanalyses on NO2 and relative risk of COPD. The natural cubic spline method without constraints might indicate a negative slope. As it is likely, that O3 increases the risk of COPD, this might be due to the (anti)correlation of NO2 with O3 (via complex pathways of air chemistry).
 
 ```{r}
 include_graphics("img/BestCostScreenshot.png")
@@ -134,7 +135,8 @@ tageswerteLong<-tageswerte %>%
   left_join(Stationsnamen_Kategorie, by="Station")
 ```
 
-The next graph shows the annual averages of measured NO2 and O3 concentrations  since 2005. The measurement site categories are symbolized as different colors. O3 is measured at all "Rural Background" sites, at most "Urban Background" sites, but not at "Urban Traffic" sites.
+This presentation will show the observed correlation of NO2 and O3 in Hessen (Germany). 
+The next graph shows the annual averages of measured NO2 and O3 concentrations since 2005. The measurement site categories are symbolized as different colors. O3 is measured at all "Rural Background" sites, at most "Urban Background" sites, but not at "Urban Traffic" sites.
 
 ## NO2 and O3 yearly averages
 
@@ -269,13 +271,13 @@ tageswerte_grouped_wide %>%
 
 The analysed data consists only of measurement data from Hessen, Germany and does not include O3 measurements at urban traffic sites. However, the observed anticorrelation might be representative for other regions with similar climate and emission patterns.
 
-Most probably, there might be a truly protective effects of NO2 via the destruction of O3. The negative slope of NO2 and relative risk of COPD (when using natural cubic spline method) is not necessarly wrong, when using a single pollutant model without confounder adjustment for O3.
+Most probably, there might be a truly protective effects of NO2 via the complex pathways of air chemistry to effectively reduce O3. The possibly negative slope of relative risk of COPD as a function of NO2 (when using natural cubic spline method) is not necessarily wrong, when using a single pollutant model without adjustment for the possible confounder O3.
 
 ## Thinking about counterfactual models
 
 When considering a re-analysis of the epidemiological data, it might be worth to consider, which counterfactual model to use.
 
- - single pollutant model, with counterfactual scenario NO2 concentration=0 or NO2 concentration=TMREL, but with O3 unchanged. This might be the classical epidemiological approach, however unrealistic, as O3 concentration would increase in real world scenarios.
+ - single pollutant model, with counterfactual scenario NO2 concentration=0 or NO2 concentration=TMREL, but with O3 unchanged. This might be the classical epidemiological approach, however unrealistic, as O3 concentration would increase in most real world scenarios.
  
 ## Counterfactual model with two pollutants
 
